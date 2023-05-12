@@ -4,8 +4,8 @@ import sys
 import struct
 
 
-assert sys.argv[1] == "a" or sys.argv[1] == "b"
-model_name = "resnet50_ibn_" + sys.argv[1]
+assert sys.argv[1] in ["a", "b"]
+model_name = f"resnet50_ibn_{sys.argv[1]}"
 
 net = torch.hub.load('XingangPan/IBN-Net', model_name, pretrained=True).to('cuda:0').eval()
 
@@ -17,11 +17,11 @@ net = torch.hub.load('XingangPan/IBN-Net', model_name, pretrained=True).to('cuda
 #out = net(input)
 #print(out)
 
-f = open(model_name + ".wts", 'w')
-f.write("{}\n".format(len(net.state_dict().keys())))
+f = open(f"{model_name}.wts", 'w')
+f.write(f"{len(net.state_dict().keys())}\n")
 for k,v in net.state_dict().items():
     vr = v.reshape(-1).cpu().numpy()
-    f.write("{} {}".format(k, len(vr)))
+    f.write(f"{k} {len(vr)}")
     for vv in vr:
         f.write(" ")
         f.write(struct.pack(">f", float(vv)).hex())

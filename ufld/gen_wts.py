@@ -11,10 +11,10 @@ state_dict = torch.load('tusimple_18.pth', map_location='cpu')['model']
 model.to(device).eval()
 
 f = open('lane.wts', 'w')
-f.write('{}\n'.format(len(state_dict.keys())))
+f.write(f'{len(state_dict.keys())}\n')
 for k, v in state_dict.items():
     vr = v.reshape(-1).cpu().numpy()
-    f.write('{} {} '.format(k, len(vr)))
+    f.write(f'{k} {len(vr)} ')
     for vv in vr:
         f.write(' ')
         f.write(struct.pack('>f',float(vv)).hex())

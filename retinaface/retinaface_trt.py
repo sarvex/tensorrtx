@@ -170,7 +170,7 @@ class Retinaface_trt(object):
                 image_raw,
                 label="{}:{:.2f}".format( 'Face', result_scores[i]))
         parent, filename = os.path.split(input_image_path)
-        save_name = os.path.join(parent, "output_" + filename)
+        save_name = os.path.join(parent, f"output_{filename}")
 
         cv2.imwrite(save_name, image_raw)
 
@@ -326,7 +326,7 @@ if __name__ == "__main__":
 
     retinaface = Retinaface_trt(engine_file_path)
     input_image_paths = ["zidane.jpg"]
-    for i in range(10):
+    for _ in range(10):
         for input_image_path in input_image_paths:
             # create a new thread to do inference
             thread = myThread(retinaface.infer, [input_image_path])

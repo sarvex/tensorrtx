@@ -37,20 +37,20 @@ def load_weights(file):
         name = splits[0]
         cur_count = int(splits[1])
         assert cur_count + 2 == len(splits)
-        values = []
-        for j in range(2, len(splits)):
-            # hex string to bytes to float
-            values.append(struct.unpack(">f", bytes.fromhex(splits[j])))
+        values = [
+            struct.unpack(">f", bytes.fromhex(splits[j]))
+            for j in range(2, len(splits))
+        ]
         weight_map[name] = np.array(values, dtype=np.float32)
 
     return weight_map
 
 
 def addBatchNorm2d(network, weight_map, input, layer_name, eps):
-    gamma = weight_map[layer_name + ".weight"]
-    beta = weight_map[layer_name + ".bias"]
-    mean = weight_map[layer_name + ".running_mean"]
-    var = weight_map[layer_name + ".running_var"]
+    gamma = weight_map[f"{layer_name}.weight"]
+    beta = weight_map[f"{layer_name}.bias"]
+    mean = weight_map[f"{layer_name}.running_mean"]
+    var = weight_map[f"{layer_name}.running_var"]
     var = np.sqrt(var + eps)
 
     scale = gamma / var
@@ -64,50 +64,56 @@ def addBatchNorm2d(network, weight_map, input, layer_name, eps):
 def bottleneck(network, weight_map, input, in_channels, out_channels, stride,
                layer_name):
 
-    conv1 = network.add_convolution(input=input,
-                                    num_output_maps=out_channels,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[layer_name +
-                                                      "conv1.weight"],
-                                    bias=trt.Weights())
+    conv1 = network.add_convolution(
+        input=input,
+        num_output_maps=out_channels,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{layer_name}conv1.weight"],
+        bias=trt.Weights(),
+    )
     assert conv1
 
-    bn1 = addBatchNorm2d(network, weight_map, conv1.get_output(0),
-                         layer_name + "bn1", EPS)
+    bn1 = addBatchNorm2d(
+        network, weight_map, conv1.get_output(0), f"{layer_name}bn1", EPS
+    )
     assert bn1
 
     relu1 = network.add_activation(bn1.get_output(0),
                                    type=trt.ActivationType.RELU)
     assert relu1
 
-    conv2 = network.add_convolution(input=relu1.get_output(0),
-                                    num_output_maps=out_channels,
-                                    kernel_shape=(3, 3),
-                                    kernel=weight_map[layer_name +
-                                                      "conv2.weight"],
-                                    bias=trt.Weights())
+    conv2 = network.add_convolution(
+        input=relu1.get_output(0),
+        num_output_maps=out_channels,
+        kernel_shape=(3, 3),
+        kernel=weight_map[f"{layer_name}conv2.weight"],
+        bias=trt.Weights(),
+    )
     assert conv2
-    conv2.stride = (stride, stride)
     conv2.padding = (1, 1)
 
-    bn2 = addBatchNorm2d(network, weight_map, conv2.get_output(0),
-                         layer_name + "bn2", EPS)
+    conv2.stride = (stride, stride)
+    bn2 = addBatchNorm2d(
+        network, weight_map, conv2.get_output(0), f"{layer_name}bn2", EPS
+    )
     assert bn2
 
     relu2 = network.add_activation(bn2.get_output(0),
                                    type=trt.ActivationType.RELU)
     assert relu2
 
-    conv3 = network.add_convolution(input=relu2.get_output(0),
-                                    num_output_maps=out_channels * 4,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[layer_name +
-                                                      "conv3.weight"],
-                                    bias=trt.Weights())
+    conv3 = network.add_convolution(
+        input=relu2.get_output(0),
+        num_output_maps=out_channels * 4,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{layer_name}conv3.weight"],
+        bias=trt.Weights(),
+    )
     assert conv3
 
-    bn3 = addBatchNorm2d(network, weight_map, conv3.get_output(0),
-                         layer_name + "bn3", EPS)
+    bn3 = addBatchNorm2d(
+        network, weight_map, conv3.get_output(0), f"{layer_name}bn3", EPS
+    )
     assert bn3
 
     if stride != 1 or in_channels != 4 * out_channels:
@@ -115,13 +121,19 @@ def bottleneck(network, weight_map, input, in_channels, out_channels, stride,
             input=input,
             num_output_maps=out_channels * 4,
             kernel_shape=(1, 1),
-            kernel=weight_map[layer_name + "downsample.0.weight"],
-            bias=trt.Weights())
+            kernel=weight_map[f"{layer_name}downsample.0.weight"],
+            bias=trt.Weights(),
+        )
         assert conv4
         conv4.stride = (stride, stride)
 
-        bn4 = addBatchNorm2d(network, weight_map, conv4.get_output(0),
-                             layer_name + "downsample.1", EPS)
+        bn4 = addBatchNorm2d(
+            network,
+            weight_map,
+            conv4.get_output(0),
+            f"{layer_name}downsample.1",
+            EPS,
+        )
         assert bn4
 
         ew1 = network.add_elementwise(bn4.get_output(0), bn3.get_output(0),

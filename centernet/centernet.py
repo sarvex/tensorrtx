@@ -36,10 +36,10 @@ class Centernet_dla34(object):
         self.engine = self.build_engine()
 
     def add_batchnorm_2d(self, input_tensor, parent):
-        gamma = self.weights[parent + '.weight'].numpy()
-        beta = self.weights[parent + '.bias'].numpy()
-        mean = self.weights[parent + '.running_mean'].numpy()
-        var = self.weights[parent + '.running_var'].numpy()
+        gamma = self.weights[f'{parent}.weight'].numpy()
+        beta = self.weights[f'{parent}.bias'].numpy()
+        mean = self.weights[f'{parent}.running_mean'].numpy()
+        var = self.weights[f'{parent}.running_var'].numpy()
         eps = 1e-5
 
         scale = gamma / np.sqrt(var + eps)
@@ -49,24 +49,24 @@ class Centernet_dla34(object):
         return self.network.add_scale(input=input_tensor.get_output(0), mode=trt.ScaleMode.CHANNEL, shift=shift, scale=scale, power=power)
 
     def add_basic_block(self, input_tensor, out_channels, residual=None, stride=1, dilation=1, parent=''):
-        conv1_w = self.weights[parent + '.conv1.weight'].numpy()
+        conv1_w = self.weights[f'{parent}.conv1.weight'].numpy()
         conv1 = self.network.add_convolution(input=input_tensor.get_output(
             0), num_output_maps=out_channels, kernel_shape=(3, 3), kernel=conv1_w)
         conv1.stride = (stride, stride)
         conv1.padding = (dilation, dilation)
         conv1.dilation = (dilation, dilation)
 
-        bn1 = self.add_batchnorm_2d(conv1, parent + '.bn1')
+        bn1 = self.add_batchnorm_2d(conv1, f'{parent}.bn1')
         ac1 = self.network.add_activation(
             input=bn1.get_output(0), type=trt.ActivationType.RELU)
 
-        conv2_w = self.weights[parent + '.conv2.weight'].numpy()
+        conv2_w = self.weights[f'{parent}.conv2.weight'].numpy()
         conv2 = self.network.add_convolution(input=ac1.get_output(
             0), num_output_maps=out_channels, kernel_shape=(3, 3), kernel=conv2_w)
         conv2.padding = (dilation, dilation)
         conv2.dilation = (dilation, dilation)
 
-        out = self.add_batchnorm_2d(conv2, parent + '.bn2')
+        out = self.add_batchnorm_2d(conv2, f'{parent}.bn2')
 
         if residual is None:
             out = self.network.add_elementwise(input_tensor.get_output(
@@ -77,28 +77,28 @@ class Centernet_dla34(object):
         return self.network.add_activation(input=out.get_output(0), type=trt.ActivationType.RELU)
 
     def add_level(self, input_tensor, out_channels, stride=1, dilation=1, parent=''):
-        conv1_w = self.weights[parent + '.0.weight'].numpy()
+        conv1_w = self.weights[f'{parent}.0.weight'].numpy()
         conv1 = self.network.add_convolution(input=input_tensor.get_output(
             0), num_output_maps=out_channels, kernel_shape=(3, 3), kernel=conv1_w)
         conv1.stride = (stride, stride)
         conv1.padding = (dilation, dilation)
         conv1.dilation = (dilation, dilation)
 
-        bn1 = self.add_batchnorm_2d(conv1, parent + '.1')
-        ac1 = self.network.add_activation(
-            input=bn1.get_output(0), type=trt.ActivationType.RELU)
-        return ac1
+        bn1 = self.add_batchnorm_2d(conv1, f'{parent}.1')
+        return self.network.add_activation(
+            input=bn1.get_output(0), type=trt.ActivationType.RELU
+        )
 
     def add_root(self, input_tensors: list, out_channels, kernel_size=1, residual=False, parent=''):
         ct = self.network.add_concatenation(
             [x.get_output(0) for x in input_tensors])
 
-        conv_w = self.weights[parent + '.conv.weight'].numpy()
+        conv_w = self.weights[f'{parent}.conv.weight'].numpy()
         conv = self.network.add_convolution(input=ct.get_output(
             0), num_output_maps=out_channels, kernel_shape=(1, 1), kernel=conv_w)
         conv.padding = ((kernel_size - 1) // 2, (kernel_size - 1) // 2)
 
-        bn1 = self.add_batchnorm_2d(conv, parent + '.bn')
+        bn1 = self.add_batchnorm_2d(conv, f'{parent}.bn')
         out = self.network.add_activation(
             input=bn1.get_output(0), type=trt.ActivationType.RELU)
 
@@ -122,8 +122,7 @@ class Centernet_dla34(object):
                                            '.project.0.weight'].numpy()
             project_conv1 = self.network.add_convolution(input=bottom.get_output(
                 0), num_output_maps=out_channels, kernel_shape=(1, 1), kernel=project_conv1_w)
-            residual = self.add_batchnorm_2d(
-                project_conv1, parent + '.project.1')
+            residual = self.add_batchnorm_2d(project_conv1, f'{parent}.project.1')
         else:
             residual = bottom
 
@@ -132,39 +131,79 @@ class Centernet_dla34(object):
 
         if level == 1:
             tree1 = self.add_basic_block(
-                input_tensor, out_channels, residual, stride, parent=parent+'.tree1')
-            tree2 = self.add_basic_block(
-                tree1, out_channels, parent=parent+'.tree2')
-            return self.add_root([tree2, tree1]+children, out_channels, parent=parent+'.root')
+                input_tensor,
+                out_channels,
+                residual,
+                stride,
+                parent=f'{parent}.tree1',
+            )
+            tree2 = self.add_basic_block(tree1, out_channels, parent=f'{parent}.tree2')
+            return self.add_root(
+                [tree2, tree1] + children, out_channels, parent=f'{parent}.root'
+            )
         else:
-            tree1 = self.add_tree(input_tensor, level-1, out_channels,
-                                  residual, stride=stride, parent=parent+'.tree1')
+            tree1 = self.add_tree(
+                input_tensor,
+                level - 1,
+                out_channels,
+                residual,
+                stride=stride,
+                parent=f'{parent}.tree1',
+            )
             children.append(tree1)
-            return self.add_tree(tree1, level-1, out_channels, children=children, parent=parent+'.tree2')
+            return self.add_tree(
+                tree1,
+                level - 1,
+                out_channels,
+                children=children,
+                parent=f'{parent}.tree2',
+            )
 
     def add_base(self, input_tensor, parent):
-        base_conv1_w = self.weights[parent+'.base_layer.0.weight'].numpy()
+        base_conv1_w = self.weights[f'{parent}.base_layer.0.weight'].numpy()
         base_conv1 = self.network.add_convolution(
             input=input_tensor, num_output_maps=self.channels[0], kernel_shape=(7, 7), kernel=base_conv1_w)
         base_conv1.padding = (3, 3)
 
-        base_bn1 = self.add_batchnorm_2d(base_conv1, parent+'.base_layer.1')
+        base_bn1 = self.add_batchnorm_2d(base_conv1, f'{parent}.base_layer.1')
         base_ac1 = self.network.add_activation(
             input=base_bn1.get_output(0), type=trt.ActivationType.RELU)
 
-        level0 = self.add_level(
-            base_ac1, self.channels[0],    parent=parent+'.level0')
-        level1 = self.add_level(
-            level0,   self.channels[1], 2, parent=parent+'.level1')
+        level0 = self.add_level(base_ac1, self.channels[0], parent=f'{parent}.level0')
+        level1 = self.add_level(level0, self.channels[1], 2, parent=f'{parent}.level1')
 
         level2 = self.add_tree(
-            level1, self.levels[2], self.channels[2], stride=2, level_root=False, parent=parent+'.level2')
+            level1,
+            self.levels[2],
+            self.channels[2],
+            stride=2,
+            level_root=False,
+            parent=f'{parent}.level2',
+        )
         level3 = self.add_tree(
-            level2, self.levels[3], self.channels[3], stride=2, level_root=True, parent=parent+'.level3')
+            level2,
+            self.levels[3],
+            self.channels[3],
+            stride=2,
+            level_root=True,
+            parent=f'{parent}.level3',
+        )
         level4 = self.add_tree(
-            level3, self.levels[4], self.channels[4], stride=2, level_root=True, parent=parent+'.level4')
+            level3,
+            self.levels[4],
+            self.channels[4],
+            stride=2,
+            level_root=True,
+            parent=f'{parent}.level4',
+        )
         level5 = self.add_tree(
-            level4, self.levels[5], self.channels[5], stride=2, level_root=True, parent=parent+'.level5')
+            level4,
+            self.levels[5],
+            self.channels[5],
+            stride=2,
+            level_root=True,
+            parent=f'{parent}.level5',
+        )
 
         return [level0, level1, level2, level3, level4, level5]
 
@@ -195,9 +234,15 @@ class Centernet_dla34(object):
         stride = trt.PluginField("stride", np.array(
             [stride], dtype=np.int32), trt.PluginFieldType.INT32)
         weight = trt.PluginField(
-            "weight", self.weights[parent + '.conv.weight'].numpy(), trt.PluginFieldType.FLOAT32)
+            "weight",
+            self.weights[f'{parent}.conv.weight'].numpy(),
+            trt.PluginFieldType.FLOAT32,
+        )
         bias = trt.PluginField(
-            "bias", self.weights[parent + '.conv.bias'].numpy(), trt.PluginFieldType.FLOAT32)
+            "bias",
+            self.weights[f'{parent}.conv.bias'].numpy(),
+            trt.PluginFieldType.FLOAT32,
+        )
         field_collection = trt.PluginFieldCollection(
             [out_channels, kernel, deformable_group, dilation, padding, stride, weight, bias])
         DCN = dcnCreator.create_plugin(
@@ -208,7 +253,7 @@ class Centernet_dla34(object):
 
         dcn = self.network.add_plugin_v2(inputs=[input_tensor.get_output(
             0), conv_offset_mask.get_output(0), sigmoid_conv_offset_mask.get_output(0)], plugin=DCN)
-        bn = self.add_batchnorm_2d(dcn, parent+'.actf.0')
+        bn = self.add_batchnorm_2d(dcn, f'{parent}.actf.0')
         return self.network.add_activation(input=bn.get_output(0), type=trt.ActivationType.RELU)
 
     def add_ida_up(self, input_tensors, out_channels, up_f, startp, parent):
@@ -243,18 +288,22 @@ class Centernet_dla34(object):
         return out
 
     def add_head(self, input_tensor, out_channels, head, head_conv=256, final_kernal=1):
-        conv1_w = self.weights[head+'.0.weight'].numpy()
-        conv1_b = self.weights[head+'.0.bias'].numpy()
+        conv1_w = self.weights[f'{head}.0.weight'].numpy()
+        conv1_b = self.weights[f'{head}.0.bias'].numpy()
         conv1 = self.network.add_convolution(
             input_tensor.get_output(0), head_conv, (3, 3), conv1_w, conv1_b)
         conv1.padding = (1, 1)
         ac1 = self.network.add_activation(
             input=conv1.get_output(0), type=trt.ActivationType.RELU)
-        conv2_w = self.weights[head + '.2.weight'].numpy()
-        conv2_b = self.weights[head+'.2.bias'].numpy()
-        conv2 = self.network.add_convolution(ac1.get_output(
-            0), out_channels, (final_kernal, final_kernal), conv2_w, conv2_b)
-        return conv2
+        conv2_w = self.weights[f'{head}.2.weight'].numpy()
+        conv2_b = self.weights[f'{head}.2.bias'].numpy()
+        return self.network.add_convolution(
+            ac1.get_output(0),
+            out_channels,
+            (final_kernal, final_kernal),
+            conv2_w,
+            conv2_b,
+        )
 
     def populate_network(self):
         # Configure the network layers based on the self.weights provided.

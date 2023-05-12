@@ -13,10 +13,10 @@ else:  # darknet format
 model = model.eval()
 
 with open('yolov3.wts', 'w') as f:
-    f.write('{}\n'.format(len(model.state_dict().keys())))
+    f.write(f'{len(model.state_dict().keys())}\n')
     for k, v in model.state_dict().items():
         vr = v.reshape(-1).cpu().numpy()
-        f.write('{} {} '.format(k, len(vr)))
+        f.write(f'{k} {len(vr)} ')
         for vv in vr:
             f.write(' ')
             f.write(struct.pack('>f',float(vv)).hex())

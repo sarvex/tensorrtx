@@ -38,20 +38,20 @@ def load_weights(file):
         name = splits[0]
         cur_count = int(splits[1])
         assert cur_count + 2 == len(splits)
-        values = []
-        for j in range(2, len(splits)):
-            # hex string to bytes to float
-            values.append(struct.unpack(">f", bytes.fromhex(splits[j])))
+        values = [
+            struct.unpack(">f", bytes.fromhex(splits[j]))
+            for j in range(2, len(splits))
+        ]
         weight_map[name] = np.array(values, dtype=np.float32)
 
     return weight_map
 
 
 def add_batch_norm_2d(network, weight_map, input, layer_name, eps):
-    gamma = weight_map[layer_name + ".weight"]
-    beta = weight_map[layer_name + ".bias"]
-    mean = weight_map[layer_name + ".running_mean"]
-    var = weight_map[layer_name + ".running_var"]
+    gamma = weight_map[f"{layer_name}.weight"]
+    beta = weight_map[f"{layer_name}.bias"]
+    mean = weight_map[f"{layer_name}.running_mean"]
+    var = weight_map[f"{layer_name}.running_var"]
     var = np.sqrt(var + eps)
 
     scale = gamma / var
@@ -75,18 +75,21 @@ def add_h_swish(network, input):
 
 def conv_bn_h_swish(network, weight_map, input, outch, ksize, s, g, lname):
     p = (ksize - 1) // 2
-    conv1 = network.add_convolution(input=input,
-                                    num_output_maps=outch,
-                                    kernel_shape=(ksize, ksize),
-                                    kernel=weight_map[lname + "0.weight"],
-                                    bias=trt.Weights()
-                                    )
+    conv1 = network.add_convolution(
+        input=input,
+        num_output_maps=outch,
+        kernel_shape=(ksize, ksize),
+        kernel=weight_map[f"{lname}0.weight"],
+        bias=trt.Weights(),
+    )
     assert conv1
     conv1.stride = (s, s)
     conv1.padding = (p, p)
     conv1.num_groups = g
 
-    bn1 = add_batch_norm_2d(network, weight_map, conv1.get_output(0), lname + "1", EPS)
+    bn1 = add_batch_norm_2d(
+        network, weight_map, conv1.get_output(0), f"{lname}1", EPS
+    )
     hsw = add_h_swish(network, bn1.get_output(0))
     assert hsw
 
@@ -101,34 +104,40 @@ def add_se_layer(network, weight_map, input, c, w, lname):
     assert l1
     l1.stride_nd = (w, h)
 
-    l2 = network.add_fully_connected(input=l1.get_output(0),
-                                     num_outputs=BS * c // 4,
-                                     kernel=weight_map[lname + "fc.0.weight"],
-                                     bias=weight_map[lname + "fc.0.bias"])
+    l2 = network.add_fully_connected(
+        input=l1.get_output(0),
+        num_outputs=BS * c // 4,
+        kernel=weight_map[f"{lname}fc.0.weight"],
+        bias=weight_map[f"{lname}fc.0.bias"],
+    )
     relu1 = network.add_activation(l2.get_output(0), type=trt.ActivationType.RELU)
-    l4 = network.add_fully_connected(input=relu1.get_output(0),
-                                     num_outputs=BS * c,
-                                     kernel=weight_map[lname + "fc.2.weight"],
-                                     bias=weight_map[lname + "fc.2.bias"])
+    l4 = network.add_fully_connected(
+        input=relu1.get_output(0),
+        num_outputs=BS * c,
+        kernel=weight_map[f"{lname}fc.2.weight"],
+        bias=weight_map[f"{lname}fc.2.bias"],
+    )
 
-    se = add_h_swish(network, l4.get_output(0))
-
-    return se
+    return add_h_swish(network, l4.get_output(0))
 
 
 def conv_seq_1(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w, lname):
     p = (k - 1) // 2
-    conv1 = network.add_convolution(input=input,
-                                    num_output_maps=hdim,
-                                    kernel_shape=(k, k),
-                                    kernel=weight_map[lname + "0.weight"],
-                                    bias=trt.Weights())
+    conv1 = network.add_convolution(
+        input=input,
+        num_output_maps=hdim,
+        kernel_shape=(k, k),
+        kernel=weight_map[f"{lname}0.weight"],
+        bias=trt.Weights(),
+    )
     assert conv1
     conv1.stride = (s, s)
     conv1.padding = (p, p)
     conv1.num_groups = hdim
 
-    bn1 = add_batch_norm_2d(network, weight_map, conv1.get_output(0), lname + "1", EPS)
+    bn1 = add_batch_norm_2d(
+        network, weight_map, conv1.get_output(0), f"{lname}1", EPS
+    )
 
     if use_hs:
         hsw = add_h_swish(network, bn1.get_output(0))
@@ -138,17 +147,21 @@ def conv_seq_1(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w
         tensor3 = relu1.get_output(0)
 
     if use_se:
-        se1 = add_se_layer(network, weight_map, tensor3, hdim, w, lname + "3.")
+        se1 = add_se_layer(network, weight_map, tensor3, hdim, w, f"{lname}3.")
         tensor4 = se1.get_output(0)
     else:
         tensor4 = tensor3
 
-    conv2 = network.add_convolution(input=tensor4,
-                                    num_output_maps=output,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[lname + "4.weight"],
-                                    bias=trt.Weights())
-    bn2 = add_batch_norm_2d(network, weight_map, conv2.get_output(0), lname + "5", EPS)
+    conv2 = network.add_convolution(
+        input=tensor4,
+        num_output_maps=output,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{lname}4.weight"],
+        bias=trt.Weights(),
+    )
+    bn2 = add_batch_norm_2d(
+        network, weight_map, conv2.get_output(0), f"{lname}5", EPS
+    )
     assert bn2
 
     return bn2
@@ -156,12 +169,16 @@ def conv_seq_1(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w
 
 def conv_seq_2(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w, lname):
     p = (k - 1) // 2
-    conv1 = network.add_convolution(input=input,
-                                    num_output_maps=hdim,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[lname + "0.weight"],
-                                    bias=trt.Weights())
-    bn1 = add_batch_norm_2d(network, weight_map, conv1.get_output(0), lname + "1", EPS)
+    conv1 = network.add_convolution(
+        input=input,
+        num_output_maps=hdim,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{lname}0.weight"],
+        bias=trt.Weights(),
+    )
+    bn1 = add_batch_norm_2d(
+        network, weight_map, conv1.get_output(0), f"{lname}1", EPS
+    )
 
     if use_hs:
         hsw1 = add_h_swish(network, bn1.get_output(0))
@@ -170,18 +187,24 @@ def conv_seq_2(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w
         relu1 = network.add_activation(bn1.get_output(0), type=trt.ActivationType.RELU)
         tensor3 = relu1.get_output(0)
 
-    conv2 = network.add_convolution(input=tensor3,
-                                    num_output_maps=hdim,
-                                    kernel_shape=(k, k),
-                                    kernel=weight_map[lname + "3.weight"],
-                                    bias=trt.Weights())
+    conv2 = network.add_convolution(
+        input=tensor3,
+        num_output_maps=hdim,
+        kernel_shape=(k, k),
+        kernel=weight_map[f"{lname}3.weight"],
+        bias=trt.Weights(),
+    )
     conv2.stride = (s, s)
     conv2.padding = (p, p)
     conv2.num_groups = hdim
-    bn2 = add_batch_norm_2d(network, weight_map, conv2.get_output(0), lname + "4", EPS)
+    bn2 = add_batch_norm_2d(
+        network, weight_map, conv2.get_output(0), f"{lname}4", EPS
+    )
 
     if use_se:
-        se1 = add_se_layer(network, weight_map, bn2.get_output(0), hdim, w, lname + "5.")
+        se1 = add_se_layer(
+            network, weight_map, bn2.get_output(0), hdim, w, f"{lname}5."
+        )
         tensor6 = se1.get_output(0)
     else:
         tensor6 = bn2.get_output(0)
@@ -193,12 +216,16 @@ def conv_seq_2(network, weight_map, input, output, hdim, k, s, use_se, use_hs, w
         relu2 = network.add_activation(tensor6, type=trt.ActivationType.RELU)
         tensor7 = relu2.get_output(0)
 
-    conv3 = network.add_convolution(input=tensor7,
-                                    num_output_maps=output,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[lname + "7.weight"],
-                                    bias=trt.Weights())
-    bn3 = add_batch_norm_2d(network, weight_map, conv3.get_output(0), lname + "8", EPS)
+    conv3 = network.add_convolution(
+        input=tensor7,
+        num_output_maps=output,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{lname}7.weight"],
+        bias=trt.Weights(),
+    )
+    bn3 = add_batch_norm_2d(
+        network, weight_map, conv3.get_output(0), f"{lname}8", EPS
+    )
     assert bn3
 
     return bn3
@@ -208,9 +235,33 @@ def inverted_res(network, weight_map, input, lname, inch, outch, s, hidden, k, u
     use_res_connect = (s == 1 and inch == outch)
 
     if inch == hidden:
-        conv = conv_seq_1(network, weight_map, input, outch, hidden, k, s, use_se, use_hs, w, lname + "conv.")
+        conv = conv_seq_1(
+            network,
+            weight_map,
+            input,
+            outch,
+            hidden,
+            k,
+            s,
+            use_se,
+            use_hs,
+            w,
+            f"{lname}conv.",
+        )
     else:
-        conv = conv_seq_2(network, weight_map, input, outch, hidden, k, s, use_se, use_hs, w, lname + "conv.")
+        conv = conv_seq_2(
+            network,
+            weight_map,
+            input,
+            outch,
+            hidden,
+            k,
+            s,
+            use_se,
+            use_hs,
+            w,
+            f"{lname}conv.",
+        )
 
     if not use_res_connect:
         return conv
@@ -342,11 +393,9 @@ def API_to_model(max_batch_size, model_type):
     config = builder.create_builder_config()
     if model_type == "small":
         engine = create_engine_small(max_batch_size, builder, config, trt.float32)
-        assert engine
     else:
         engine = create_engine_large(max_batch_size, builder, config, trt.float32)
-        assert engine
-
+    assert engine
     with open(ENGINE_PATH, "wb") as f:
         f.write(engine.serialize())
 

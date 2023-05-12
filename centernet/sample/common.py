@@ -98,7 +98,7 @@ def find_sample_data(description="Runs a TensorRT Python sample", subfolder="", 
         data_path = os.path.join(data_dir, subfolder)
         if not os.path.exists(data_path):
             if data_dir != kDEFAULT_DATA_ROOT:
-                print("WARNING: " + data_path + " does not exist. Trying " + data_dir + " instead.")
+                print(f"WARNING: {data_path} does not exist. Trying {data_dir} instead.")
             data_path = data_dir
         # Make sure data directory exists.
         if not (os.path.exists(data_path)) and data_dir != kDEFAULT_DATA_ROOT:

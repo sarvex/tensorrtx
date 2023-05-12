@@ -26,39 +26,37 @@ def build_backbone():
     return model
 
 def gen_wts(model, filename):
-    f = open(filename + '.wts', 'w')
-    f.write('{}\n'.format(len(model.state_dict().keys()) + 72))
-    for k, v in model.state_dict().items():
-        if 'in_proj' in k:
-            dim = int(v.size(0) / 3)
-            q_weight = v[:dim].reshape(-1).cpu().numpy()
-            k_weight = v[dim:2*dim].reshape(-1).cpu().numpy()
-            v_weight = v[2*dim:].reshape(-1).cpu().numpy()
-            f.write('{} {} '.format(k + '_q', len(q_weight)))
-            for vv in q_weight:
-                f.write(' ')
-                f.write(struct.pack('>f', float(vv)).hex())
-            f.write('\n')
+    with open(f'{filename}.wts', 'w') as f:
+        f.write(f'{len(model.state_dict().keys()) + 72}\n')
+        for k, v in model.state_dict().items():
+            if 'in_proj' in k:
+                dim = int(v.size(0) / 3)
+                q_weight = v[:dim].reshape(-1).cpu().numpy()
+                k_weight = v[dim:2*dim].reshape(-1).cpu().numpy()
+                v_weight = v[2*dim:].reshape(-1).cpu().numpy()
+                f.write(f'{k}_q {len(q_weight)} ')
+                for vv in q_weight:
+                    f.write(' ')
+                    f.write(struct.pack('>f', float(vv)).hex())
+                f.write('\n')
 
-            f.write('{} {} '.format(k + '_k', len(k_weight)))
-            for vv in k_weight:
-                f.write(' ')
-                f.write(struct.pack('>f', float(vv)).hex())
-            f.write('\n')
+                f.write(f'{k}_k {len(k_weight)} ')
+                for vv in k_weight:
+                    f.write(' ')
+                    f.write(struct.pack('>f', float(vv)).hex())
+                f.write('\n')
 
-            f.write('{} {} '.format(k + '_v', len(v_weight)))
-            for vv in v_weight:
-                f.write(' ')
-                f.write(struct.pack('>f', float(vv)).hex())
+                f.write(f'{k}_v {len(v_weight)} ')
+                for vv in v_weight:
+                    f.write(' ')
+                    f.write(struct.pack('>f', float(vv)).hex())
+            else:
+                vr = v.reshape(-1).cpu().numpy()
+                f.write(f'{k} {len(vr)} ')
+                for vv in vr:
+                    f.write(' ')
+                    f.write(struct.pack('>f',float(vv)).hex())
             f.write('\n')
-        else:
-            vr = v.reshape(-1).cpu().numpy()
-            f.write('{} {} '.format(k, len(vr)))
-            for vv in vr:
-                f.write(' ')
-                f.write(struct.pack('>f',float(vv)).hex())
-            f.write('\n')
-    f.close()
 
 def main():
     num_classes = 91

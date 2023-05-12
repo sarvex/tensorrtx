@@ -8,7 +8,7 @@ import numpy as np
 def write_one_weight(writer, name, weight):
     assert isinstance(weight, np.ndarray)
     values = weight.reshape(-1)
-    writer.write('{} {}'.format(name, len(values)))
+    writer.write(f'{name} {len(values)}')
     for value in values:
         writer.write(' ')
         # float to bytes to hex_string

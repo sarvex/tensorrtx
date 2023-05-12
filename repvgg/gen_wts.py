@@ -8,10 +8,10 @@ def main(args):
     # Load model
     state_dict = torch.load(args.weight)
     with open(args.save_path, "w") as f:
-        f.write("{}\n".format(len(state_dict.keys())))
+        f.write(f"{len(state_dict.keys())}\n")
         for k, v in state_dict.items():
             vr = v.reshape(-1).cpu().numpy()
-            f.write("{} {} ".format(k, len(vr)))
+            f.write(f"{k} {len(vr)} ")
             for vv in vr:
                 f.write(" ")
                 f.write(struct.pack(">f", float(vv)).hex())

@@ -30,30 +30,29 @@ def parse_args():
 def main():
     args = parse_args()
 
-    model = eval("models." + config.MODEL.NAME + ".get_seg_model")(config)
+    model = eval(f"models.{config.MODEL.NAME}.get_seg_model")(config)
 
-    print("=> loading model from {}".format(args.ckpt_path))
+    print(f"=> loading model from {args.ckpt_path}")
     pretrained_dict = torch.load(args.ckpt_path, map_location="cpu")
     model_dict = model.state_dict()
     pretrained_dict = {
         k[6:]: v for k, v in pretrained_dict.items() if k[6:] in model_dict.keys()
     }
-    for k, _ in pretrained_dict.items():
-        print("=> loading {} from pretrained model".format(k))
+    for k in pretrained_dict:
+        print(f"=> loading {k} from pretrained model")
     model_dict.update(pretrained_dict)
     model.load_state_dict(model_dict)
 
-    print("=> saving {} ".format(args.save_path))
-    f = open(args.save_path, "w")
-    f.write("{}\n".format(len(model.state_dict().keys())))
-    for k, v in model.state_dict().items():
-        vr = v.reshape(-1).cpu().numpy()
-        f.write("{} {} ".format(k, len(vr)))
-        for vv in vr:
-            f.write(" ")
-            f.write(struct.pack(">f", float(vv)).hex())
-        f.write("\n")
-    f.close()
+    print(f"=> saving {args.save_path} ")
+    with open(args.save_path, "w") as f:
+        f.write(f"{len(model.state_dict().keys())}\n")
+        for k, v in model.state_dict().items():
+            vr = v.reshape(-1).cpu().numpy()
+            f.write(f"{k} {len(vr)} ")
+            for vv in vr:
+                f.write(" ")
+                f.write(struct.pack(">f", float(vv)).hex())
+            f.write("\n")
 
 
 if __name__ == "__main__":

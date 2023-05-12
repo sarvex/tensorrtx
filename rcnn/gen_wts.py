@@ -35,16 +35,15 @@ def fuse_bn(model):
             fuse_bn(child)
 
 def gen_wts(model, filename):
-    f = open('./' + filename + '.wts', 'w')
-    f.write('{}\n'.format(len(model.state_dict().keys())))
-    for k, v in model.state_dict().items():
-        vr = v.reshape(-1).cpu().numpy()
-        f.write('{} {} '.format(k, len(vr)))
-        for vv in vr:
-            f.write(' ')
-            f.write(struct.pack('>f',float(vv)).hex())
-        f.write('\n')
-    f.close()
+    with open(f'./{filename}.wts', 'w') as f:
+        f.write(f'{len(model.state_dict().keys())}\n')
+        for k, v in model.state_dict().items():
+            vr = v.reshape(-1).cpu().numpy()
+            f.write(f'{k} {len(vr)} ')
+            for vv in vr:
+                f.write(' ')
+                f.write(struct.pack('>f',float(vv)).hex())
+            f.write('\n')
 
 # construct model
 from detectron2.config import get_cfg

@@ -15,7 +15,7 @@ param_dict = reader.get_variable_to_shape_map()
 
 f = open(r"psenet.wts", "w")
 keys = param_dict.keys()
-f.write("{}\n".format(len(keys)))
+f.write(f"{len(keys)}\n")
 
 for key in keys:
     weight = reader.get_tensor(key)
@@ -24,7 +24,7 @@ for key in keys:
         weight = np.transpose(weight, (3, 2, 0, 1))
         print(weight.shape)
     weight = np.reshape(weight, -1)
-    f.write("{} {} ".format(key, len(weight)))
+    f.write(f"{key} {len(weight)} ")
     for w in weight:
         f.write(" ")
         f.write(struct.pack(">f", float(w)).hex())

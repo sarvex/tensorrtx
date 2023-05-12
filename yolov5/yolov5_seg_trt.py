@@ -126,9 +126,9 @@ class YoLov5TRT(object):
         self.mask_output_length = host_outputs[1].shape[0]
         self.seg_w = int(self.input_w / 4)
         self.seg_h = int(self.input_h / 4)
-        self.seg_c = int(self.mask_output_length / (self.seg_w * self.seg_w))
+        self.seg_c = int(self.mask_output_length / self.seg_w**2)
         self.det_row_output_length = self.seg_c + 6
-        
+
         # Draw mask
         self.colors_obj = Colors()
 
@@ -347,14 +347,12 @@ class YoLov5TRT(object):
         inter_rect_y2 = np.minimum(b1_y2, b2_y2)
         # Intersection area
         inter_area = np.clip(inter_rect_x2 - inter_rect_x1 + 1, 0, None) * \
-                     np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
+                         np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
         # Union Area
         b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
         b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
 
-        iou = inter_area / (b1_area + b2_area - inter_area + 1e-16)
-
-        return iou
+        return inter_area / (b1_area + b2_area - inter_area + 1e-16)
 
     def non_max_suppression(self, prediction, origin_h, origin_w, conf_thres=0.5, nms_thres=0.4):
         """
@@ -444,8 +442,7 @@ class YoLov5TRT(object):
             crop = crop.astype(np.uint8)
             mask_s[y1:y2, x1:x2] = crop
             mask_result.append(mask_s)
-        mask_result = np.array(mask_result)
-        return mask_result
+        return np.array(mask_result)
 
     def draw_mask(self, masks, colors_, im_src, alpha=0.5):
         """
@@ -512,15 +509,11 @@ class Colors:
         return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
 
 if __name__ == "__main__":
-    # load custom plugin and engine
-    PLUGIN_LIBRARY = "build/libmyplugins.so"
     engine_file_path = "build/yolov5s-seg.engine"
 
     if len(sys.argv) > 1:
         engine_file_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        PLUGIN_LIBRARY = sys.argv[2]
-
+    PLUGIN_LIBRARY = sys.argv[2] if len(sys.argv) > 2 else "build/libmyplugins.so"
     ctypes.CDLL(PLUGIN_LIBRARY)
 
     # load coco labels
@@ -546,7 +539,7 @@ if __name__ == "__main__":
         image_dir = "images/"
         image_path_batches = get_img_path_batches(yolov5_wrapper.batch_size, image_dir)
 
-        for i in range(10):
+        for _ in range(10):
             # create a new thread to do warm_up
             thread1 = warmUpThread(yolov5_wrapper)
             thread1.start()

@@ -35,10 +35,10 @@ def load_weights(file):
         name = splits[0]
         cur_count = int(splits[1])
         assert cur_count + 2 == len(splits)
-        values = []
-        for j in range(2, len(splits)):
-            # hex string to bytes to float
-            values.append(struct.unpack(">f", bytes.fromhex(splits[j])))
+        values = [
+            struct.unpack(">f", bytes.fromhex(splits[j]))
+            for j in range(2, len(splits))
+        ]
         weight_map[name] = np.array(values, dtype=np.float32)
 
     return weight_map

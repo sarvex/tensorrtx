@@ -165,7 +165,7 @@ class inferThread(threading.Thread):
 
     def run(self):
         batch_image_raw, use_time = self.hrnet_wrapper.infer(self.hrnet_wrapper.get_raw_image(self.image_path_batch))
-        for i, img_path in enumerate(self.image_path_batch):
+        for img_path in self.image_path_batch:
             parent, filename = os.path.split(img_path)
             save_name = os.path.join('output', filename)
             # Save image
@@ -185,12 +185,7 @@ class warmUpThread(threading.Thread):
 
 
 if __name__ == "__main__":
-    # load custom engine
-    engine_file_path = "build/hrnet.engine"  # the generated engine file
-    
-    if len(sys.argv) > 1:
-        engine_file_path = sys.argv[1]
-
+    engine_file_path = sys.argv[1] if len(sys.argv) > 1 else "build/hrnet.engine"
     if os.path.exists('output/'):
         shutil.rmtree('output/')
     os.makedirs('output/')
@@ -198,11 +193,11 @@ if __name__ == "__main__":
     hrnet_wrapper = Hrnet_TRT(engine_file_path)
     try:
         print('batch size is', hrnet_wrapper.batch_size)  # batch size is set to 1!
-        
+
         image_dir = "samples/"
         image_path_batches = get_img_path_batches(hrnet_wrapper.batch_size, image_dir)
 
-        for i in range(10):
+        for _ in range(10):
             # create a new thread to do warm_up
             thread1 = warmUpThread(hrnet_wrapper)
             thread1.start()

@@ -87,17 +87,16 @@ def main():
     torch.backends.cudnn.enabled = config.CUDNN.ENABLED
 
     # eval() 函数用来执行一个字符串表达式，并返回表达式的值。
-    model = eval('models.'+config.MODEL.NAME+'.get_cls_net')(
-        config)
+    model = eval(f'models.{config.MODEL.NAME}.get_cls_net')(config)
 
     model.load_state_dict(torch.load(args.testModel))
 
     if savewts:
         f = open('HRNetClassify.wts', 'w')
-        f.write('{}\n'.format(len(model.state_dict().keys())))
+        f.write(f'{len(model.state_dict().keys())}\n')
         for k, v in model.state_dict().items():
             vr = v.reshape(-1).cpu().numpy()
-            f.write('{} {} '.format(k, len(vr)))
+            f.write(f'{k} {len(vr)} ')
             for vv in vr:
                 f.write(' ')
                 f.write(struct.pack('>f', float(vv)).hex())

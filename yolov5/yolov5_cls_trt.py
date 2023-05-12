@@ -163,9 +163,7 @@ class YoLov5TRT(object):
         im -= self.mean
         im /= self.std
         im = im.transpose(2, 0, 1)
-        # prepare batch
-        batch_data = np.expand_dims(im, axis=0)
-        return batch_data
+        return np.expand_dims(im, axis=0)
 
     def postprocess_cls(self, output_data):
         classes_ls = []
@@ -233,7 +231,7 @@ if __name__ == "__main__":
         image_path_batches = get_img_path_batches(
             yolov5_wrapper.batch_size, image_dir)
 
-        for i in range(10):
+        for _ in range(10):
             # create a new thread to do warm_up
             thread1 = warmUpThread(yolov5_wrapper)
             thread1.start()

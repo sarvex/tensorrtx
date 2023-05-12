@@ -323,14 +323,12 @@ class YoLov5TRT(object):
         inter_rect_y2 = np.minimum(b1_y2, b2_y2)
         # Intersection area
         inter_area = np.clip(inter_rect_x2 - inter_rect_x1 + 1, 0, None) * \
-                     np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
+                         np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
         # Union Area
         b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
         b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
 
-        iou = inter_area / (b1_area + b2_area - inter_area + 1e-16)
-
-        return iou
+        return inter_area / (b1_area + b2_area - inter_area + 1e-16)
 
     def non_max_suppression(self, prediction, origin_h, origin_w, conf_thres=0.5, nms_thres=0.4):
         """
@@ -398,15 +396,8 @@ class warmUpThread(threading.Thread):
 
 
 if __name__ == "__main__":
-    # load custom plugin and engine
-    PLUGIN_LIBRARY = "build/libmyplugins.so"
-    engine_file_path = "build/yolov5s.engine"
-
-    if len(sys.argv) > 1:
-        engine_file_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        PLUGIN_LIBRARY = sys.argv[2]
-
+    engine_file_path = sys.argv[1] if len(sys.argv) > 1 else "build/yolov5s.engine"
+    PLUGIN_LIBRARY = sys.argv[2] if len(sys.argv) > 2 else "build/libmyplugins.so"
     ctypes.CDLL(PLUGIN_LIBRARY)
     cudart.cudaDeviceSynchronize()
 
@@ -438,7 +429,7 @@ if __name__ == "__main__":
         image_dir = "images/"
         image_path_batches = get_img_path_batches(yolov5_wrapper.batch_size, image_dir)
 
-        for i in range(10):
+        for _ in range(10):
             # create a new thread to do warm_up
             thread1 = warmUpThread(yolov5_wrapper)
             thread1.start()

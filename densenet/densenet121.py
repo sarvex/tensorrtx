@@ -38,20 +38,20 @@ def load_weights(file):
         name = splits[0]
         cur_count = int(splits[1])
         assert cur_count + 2 == len(splits)
-        values = []
-        for j in range(2, len(splits)):
-            # hex string to bytes to float
-            values.append(struct.unpack(">f", bytes.fromhex(splits[j])))
+        values = [
+            struct.unpack(">f", bytes.fromhex(splits[j]))
+            for j in range(2, len(splits))
+        ]
         weight_map[name] = np.array(values, dtype=np.float32)
 
     return weight_map
 
 
 def add_batch_norm_2d(network, weight_map, input, layer_name):
-    gamma = weight_map[layer_name + ".weight"]
-    beta = weight_map[layer_name + ".bias"]
-    mean = weight_map[layer_name + ".running_mean"]
-    var = weight_map[layer_name + ".running_var"]
+    gamma = weight_map[f"{layer_name}.weight"]
+    beta = weight_map[f"{layer_name}.bias"]
+    mean = weight_map[f"{layer_name}.running_mean"]
+    var = weight_map[f"{layer_name}.running_var"]
     var = np.sqrt(var + EPS)
 
     scale = gamma / var
@@ -63,29 +63,35 @@ def add_batch_norm_2d(network, weight_map, input, layer_name):
 
 
 def add_dense_layer(network, input, weight_map, lname):
-    bn1 = add_batch_norm_2d(network, weight_map, input, lname + ".norm1")
+    bn1 = add_batch_norm_2d(network, weight_map, input, f"{lname}.norm1")
 
     relu1 = network.add_activation(bn1.get_output(0), type=trt.ActivationType.RELU)
     assert relu1
 
-    conv1 = network.add_convolution(input=relu1.get_output(0),
-                                    num_output_maps=128,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[lname + ".conv1.weight"],
-                                    bias=trt.Weights())
+    conv1 = network.add_convolution(
+        input=relu1.get_output(0),
+        num_output_maps=128,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{lname}.conv1.weight"],
+        bias=trt.Weights(),
+    )
     assert conv1
     conv1.stride = (1, 1)
 
-    bn2 = add_batch_norm_2d(network, weight_map, conv1.get_output(0), lname + ".norm2")
+    bn2 = add_batch_norm_2d(
+        network, weight_map, conv1.get_output(0), f"{lname}.norm2"
+    )
 
     relu2 = network.add_activation(bn2.get_output(0), type=trt.ActivationType.RELU)
     assert relu2
 
-    conv2 = network.add_convolution(input=relu2.get_output(0),
-                                    num_output_maps=32,
-                                    kernel_shape=(3, 3),
-                                    kernel=weight_map[lname + ".conv2.weight"],
-                                    bias=trt.Weights())
+    conv2 = network.add_convolution(
+        input=relu2.get_output(0),
+        num_output_maps=32,
+        kernel_shape=(3, 3),
+        kernel=weight_map[f"{lname}.conv2.weight"],
+        bias=trt.Weights(),
+    )
     assert conv2
     conv2.stride = (1, 1)
     conv2.padding = (1, 1)
@@ -94,16 +100,18 @@ def add_dense_layer(network, input, weight_map, lname):
 
 
 def add_transition(network, input, weight_map, outch, lname):
-    bn1 = add_batch_norm_2d(network, weight_map, input, lname + ".norm")
+    bn1 = add_batch_norm_2d(network, weight_map, input, f"{lname}.norm")
 
     relu1 = network.add_activation(bn1.get_output(0), type=trt.ActivationType.RELU)
     assert relu1
 
-    conv1 = network.add_convolution(input=relu1.get_output(0),
-                                    num_output_maps=outch,
-                                    kernel_shape=(1, 1),
-                                    kernel=weight_map[lname + ".conv.weight"],
-                                    bias=trt.Weights())
+    conv1 = network.add_convolution(
+        input=relu1.get_output(0),
+        num_output_maps=outch,
+        kernel_shape=(1, 1),
+        kernel=weight_map[f"{lname}.conv.weight"],
+        bias=trt.Weights(),
+    )
     assert conv1
     conv1.stride = (1, 1)
 
@@ -120,12 +128,17 @@ def add_transition(network, input, weight_map, outch, lname):
 def add_dense_block(network, input, weight_map, num_dense_layers, lname):
     input_tensors = [None for _ in range(num_dense_layers+1)]
     input_tensors[0] = input
-    c = add_dense_layer(network, input, weight_map, lname + ".denselayer" + str(1))
+    c = add_dense_layer(network, input, weight_map, f"{lname}.denselayer1")
     for i in range(1, num_dense_layers):
         input_tensors[i] = c.get_output(0)
         concat = network.add_concatenation(input_tensors[:i+1])
         assert concat
-        c = add_dense_layer(network, concat.get_output(0), weight_map, lname + ".denselayer" + str(i+1))
+        c = add_dense_layer(
+            network,
+            concat.get_output(0),
+            weight_map,
+            f"{lname}.denselayer{str(i + 1)}",
+        )
 
     input_tensors[num_dense_layers] = c.get_output(0)
     concat = network.add_concatenation(input_tensors)

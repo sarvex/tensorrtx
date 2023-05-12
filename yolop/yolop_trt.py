@@ -294,14 +294,12 @@ class YolopTRT(object):
         inter_rect_y2 = np.minimum(b1_y2, b2_y2)
         # Intersection area
         inter_area = np.clip(inter_rect_x2 - inter_rect_x1 + 1, 0, None) * \
-                     np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
+                         np.clip(inter_rect_y2 - inter_rect_y1 + 1, 0, None)
         # Union Area
         b1_area = (b1_x2 - b1_x1 + 1) * (b1_y2 - b1_y1 + 1)
         b2_area = (b2_x2 - b2_x1 + 1) * (b2_y2 - b2_y1 + 1)
 
-        iou = inter_area / (b1_area + b2_area - inter_area + 1e-16)
-
-        return iou
+        return inter_area / (b1_area + b2_area - inter_area + 1e-16)
 
     def non_max_suppression(self, prediction, origin_h, origin_w, conf_thres=0.5, nms_thres=0.4):
         """
@@ -343,18 +341,12 @@ class YolopTRT(object):
 
 
 if __name__ == "__main__":
-    # load custom plugin and engine
-    PLUGIN_LIBRARY = "build/libmyplugins.so"
-    engine_file_path = "build/yolop.trt"
-
     print("usage: xxx <engine file> <plugin file> <image dir>")
     print("[WARN] preaprea you image_dir, such as: samples, or /home/user/jetson/tmp/YOLOP/inference/images")
     IMAGE_DIR =  "/home/user/jetson/tmp/YOLOP/inference/images"
 
-    if len(sys.argv) > 1:
-        engine_file_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        PLUGIN_LIBRARY = sys.argv[2]
+    engine_file_path = sys.argv[1] if len(sys.argv) > 1 else "build/yolop.trt"
+    PLUGIN_LIBRARY = sys.argv[2] if len(sys.argv) > 2 else "build/libmyplugins.so"
     if len(sys.argv) > 3:
         IMAGE_DIR = sys.argv[3]
 
@@ -375,7 +367,7 @@ if __name__ == "__main__":
         image_dir = IMAGE_DIR
         image_path_batches = get_img_path_batches(yolop_wrapper.batch_size, image_dir)
 
-        for i in range(1):
+        for _ in range(1):
             batch_image_raw, use_time = yolop_wrapper.infer(yolop_wrapper.get_raw_image_zeros())
             print('warm_up->{}, time->{:.2f}ms'.format(batch_image_raw[0].shape, use_time * 1000))
 

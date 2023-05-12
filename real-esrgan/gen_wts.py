@@ -55,9 +55,11 @@ def main():
         netscale = 4
 
     # determine model paths
-    model_path = os.path.join('experiments/pretrained_models', args.model_name + '.pth')
+    model_path = os.path.join(
+        'experiments/pretrained_models', f'{args.model_name}.pth'
+    )
     if not os.path.isfile(model_path):
-        model_path = os.path.join('realesrgan/weights', args.model_name + '.pth')
+        model_path = os.path.join('realesrgan/weights', f'{args.model_name}.pth')
     if not os.path.isfile(model_path):
         raise ValueError(f'Model {args.model_name} does not exist.')
 
@@ -76,12 +78,12 @@ def main():
     else:
         print('making real-esrgan.wts file ...')
         f = open("real-esrgan.wts", 'w')
-        f.write("{}\n".format(len(upsampler.model.state_dict().keys())))
+        f.write(f"{len(upsampler.model.state_dict().keys())}\n")
         for k, v in upsampler.model.state_dict().items():
             print('key: ', k)
             print('value: ', v.shape)
             vr = v.reshape(-1).cpu().numpy()
-            f.write("{} {}".format(k, len(vr)))
+            f.write(f"{k} {len(vr)}")
             for vv in vr:
                 f.write(" ")
                 f.write(struct.pack(">f", float(vv)).hex())
